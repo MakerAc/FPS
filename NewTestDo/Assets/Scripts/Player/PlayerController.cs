@@ -22,7 +22,10 @@ public class PlayerController : MonoBehaviour
 
     [Header("射击设置")]
     [SerializeField] private float fireRate = 0.5f;
+    [SerializeField] private float shootDelay = 0.1f; // 新增：子弹延迟发射时间
     private float nextFireTime = 0f;
+    private Coroutine delayedShootCoroutine; // 延迟射击协程
+    private bool isShooting = false; // 是否正在射击
 
     // 输入变量
     private Vector3 moveDirection = Vector3.zero;
@@ -201,20 +204,45 @@ public class PlayerController : MonoBehaviour
 
     private void HandleShooting()
     {
+        // 如果已经按下了射击键并且正在射击过程中，不重复触发
+        if (isShooting) return;
+
         if (Input.GetMouseButton(0) && Time.time >= nextFireTime)
         {
             // 触发射击
             nextFireTime = Time.time + fireRate;
 
-            // 播放射击动画
+            // 立即播放射击动画
             animator.SetTrigger(ANIM_SHOOT);
 
-            // 创建子弹
-            if (projectilePrefab != null && firePoint != null)
+            // 开始延迟射击协程
+            delayedShootCoroutine = StartCoroutine(DelayedShoot());
+        }
+    }
+
+    private IEnumerator DelayedShoot()
+    {
+        isShooting = true;
+
+        // 等待指定的延迟时间
+        yield return new WaitForSeconds(shootDelay);
+
+        // 创建子弹
+        if (projectilePrefab != null && firePoint != null)
+        {
+            GameObject bullet = Instantiate(projectilePrefab, firePoint.position, firePoint.rotation);
+
+            // 获取子弹脚本并初始化
+            Bullet bulletScript = bullet.GetComponent<Bullet>();
+            if (bulletScript != null)
             {
-                Instantiate(projectilePrefab, firePoint.position, firePoint.rotation);
+                // 从firePoint的前方发射子弹
+                Vector3 shootDirection = firePoint.forward;
+                bulletScript.Initialize(shootDirection);
             }
         }
+
+        isShooting = false;
     }
 
     public void TakeDamage(float damage)
@@ -234,6 +262,12 @@ public class PlayerController : MonoBehaviour
     private void Die()
     {
         isDead = true;
+
+        // 停止延迟射击协程
+        if (delayedShootCoroutine != null)
+        {
+            StopCoroutine(delayedShootCoroutine);
+        }
 
         // 播放死亡动画
         animator.SetTrigger(ANIM_DIE);
@@ -264,6 +298,16 @@ public class PlayerController : MonoBehaviour
         Destroy(gameObject);
     }
 
+    // 添加一个方法来停止所有射击协程（如果需要的话）
+    public void StopAllShooting()
+    {
+        if (delayedShootCoroutine != null)
+        {
+            StopCoroutine(delayedShootCoroutine);
+            isShooting = false;
+        }
+    }
+
     public float GetHealthPercentage()
     {
         return currentHealth / maxHealth;
@@ -276,5 +320,8 @@ public class PlayerController : MonoBehaviour
         {
             rotationTweener.Kill();
         }
+
+        // 清理射击协程
+        StopAllShooting();
     }
 }
