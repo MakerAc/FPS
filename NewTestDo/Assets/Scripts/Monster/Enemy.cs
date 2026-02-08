@@ -1,5 +1,12 @@
 using UnityEngine;
 
+
+[System.Serializable]
+public class EnemyEventData
+{
+    public int enemyId;  // 怪物唯一标识（使用InstanceID）
+    public int damage;    // 伤害值（可选）
+}
 public class Enemy : MonoBehaviour
 {
     [SerializeField] private float health = 50f;
@@ -26,7 +33,14 @@ public class Enemy : MonoBehaviour
         // 播放死亡动画、特效等
         Debug.Log($"{gameObject.name} 被击败！");
 
-        // 销毁敌人
-        Destroy(gameObject);
+        // 销毁父物体（如果存在），否则销毁自身
+        if (transform.parent != null)
+        {
+            Destroy(transform.parent.gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 }
