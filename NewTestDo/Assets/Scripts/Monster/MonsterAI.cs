@@ -26,6 +26,12 @@ public class MonsterAI : MonoBehaviour
     private Transform playerTarget; // 追击的玩家目标
     private bool isChasing = false; // 是否正在追击玩家
 
+    // 添加一个标志，用于标记是否被强制停止
+    private bool isMovementStopped = false;
+
+    // 添加一个可选的速度备份，用于恢复移动
+    private float originalMoveSpeed = 0f;
+
     // 定义怪物状态枚举
     private enum MonsterState
     {
@@ -45,6 +51,9 @@ public class MonsterAI : MonoBehaviour
         // 初始化状态
         currentState = MonsterState.Idle;
         SetRandomStateDuration();
+
+        // 记录原始移动速度
+        originalMoveSpeed = moveSpeed;
     }
 
     private void Start()
@@ -54,10 +63,16 @@ public class MonsterAI : MonoBehaviour
         {
             CheckCollider.isTrigger = true;
         }
+
+        //注册监听怪物死亡事件
+        this.RegisterEvent("MonsterDied", OnMonsterDie);
     }
 
     private void Update()
     {
+        // 如果移动被强制停止，则直接返回
+        if (isMovementStopped) return;
+
         // 如果正在追击玩家，优先处理追击逻辑
         if (isChasing && playerTarget != null)
         {
@@ -82,10 +97,105 @@ public class MonsterAI : MonoBehaviour
     }
 
     /// <summary>
+    /// 怪物死亡处理
+    /// </summary>
+    private void OnMonsterDie()
+    {
+        Debug.Log("收到Enemy脚本的怪物死亡通知，执行怪物死亡相关逻辑");
+        StopMoving();
+    }
+
+    /// <summary>
+    /// 立即停止怪物移动
+    /// </summary>
+    public void StopMoving() 
+    {
+        // 如果已经停止移动，则直接返回
+        if (isMovementStopped) return;
+
+        // 记录原始速度，以便恢复
+        originalMoveSpeed = moveSpeed;
+
+        // 立即停止移动
+        moveSpeed = 0f;
+
+        // 设置停止标志
+        isMovementStopped = true;
+
+        // 强制切换到站立状态
+        if (currentState != MonsterState.Idle)
+        {
+            currentState = MonsterState.Idle;
+            MoveToIdle();
+        }
+
+        // 重置计时器，防止立即切换状态
+        stateTimer = 0f;
+
+        Debug.Log("怪物移动已停止");
+    }
+
+    /// <summary>
+    /// 恢复怪物移动
+    /// </summary>
+    /// <param name="restoreOriginalSpeed">是否恢复原始速度，默认为true</param>
+    public void ResumeMoving(bool restoreOriginalSpeed = true)
+    {
+        // 如果已经在移动，则直接返回
+        if (!isMovementStopped) return;
+
+        // 清除停止标志
+        isMovementStopped = false;
+
+        // 恢复移动速度
+        if (restoreOriginalSpeed)
+        {
+            moveSpeed = originalMoveSpeed;
+        }
+        else
+        {
+            // 如果不想恢复原始速度，可以设置一个新的速度
+            // 或者保持当前为0的速度（但这样怪物不会移动）
+        }
+
+        Debug.Log($"怪物移动已恢复，当前速度: {moveSpeed}");
+    }
+
+    /// <summary>
+    /// 停止怪物移动一段时间
+    /// </summary>
+    /// <param name="duration">停止时间（秒）</param>
+    /// <param name="restoreOriginalSpeed">停止后是否恢复原始速度</param>
+    public void StopMovingForDuration(float duration, bool restoreOriginalSpeed = true)
+    {
+        if (isMovementStopped) return;
+
+        StartCoroutine(StopMovingCoroutine(duration, restoreOriginalSpeed));
+    }
+
+    /// <summary>
+    /// 停止移动的协程
+    /// </summary>
+    private IEnumerator StopMovingCoroutine(float duration, bool restoreOriginalSpeed)
+    {
+        // 停止移动
+        StopMoving();
+
+        // 等待指定时间
+        yield return new WaitForSeconds(duration);
+
+        // 恢复移动
+        ResumeMoving(restoreOriginalSpeed);
+    }
+
+    /// <summary>
     /// 设置随机状态持续时间
     /// </summary>
     private void SetRandomStateDuration()
     {
+        // 如果移动被停止，不设置新的状态持续时间
+        if (isMovementStopped) return;
+
         // 根据当前状态设置不同的持续时间
         if (currentState == MonsterState.Idle)
         {
@@ -108,6 +218,9 @@ public class MonsterAI : MonoBehaviour
     /// </summary>
     private void SwitchState()
     {
+        // 如果移动被停止，不切换状态
+        if (isMovementStopped) return;
+
         // 如果正在追击玩家，不切换状态
         if (isChasing) return;
 
@@ -140,6 +253,9 @@ public class MonsterAI : MonoBehaviour
     #region 状态切换逻辑
     private void IdleToMove()
     {
+        // 如果移动被停止，不执行普通移动逻辑
+        if (isMovementStopped) return;
+
         // 如果正在追击玩家，不执行普通移动逻辑
         if (isChasing) return;
 
@@ -164,6 +280,9 @@ public class MonsterAI : MonoBehaviour
 
     private void MoveToIdle()
     {
+        // 如果移动被停止，不切换到站立状态
+        if (isMovementStopped) return;
+
         // 如果正在追击玩家，不切换到站立状态
         if (isChasing) return;
 
@@ -177,6 +296,9 @@ public class MonsterAI : MonoBehaviour
     /// </summary>
     private void Move()
     {
+        // 如果移动被停止，不执行普通移动
+        if (isMovementStopped) return;
+
         // 如果正在追击玩家，不执行普通移动
         if (isChasing) return;
 
@@ -203,11 +325,13 @@ public class MonsterAI : MonoBehaviour
     /// </summary>
     private void ChasePlayer()
     {
+        // 如果移动被停止，不追击玩家
+        if (isMovementStopped) return;
+
         if (playerTarget == null) return;
 
         // 计算与玩家的距离
         float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position);
-        Debug.Log(distanceToPlayer + "11111111111");
 
         // 计算朝向玩家的方向
         Vector3 directionToPlayer = (playerTarget.position - transform.position).normalized;
