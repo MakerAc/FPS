@@ -1364,7 +1364,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0.9, z: -0.08}
-  m_LocalScale: {x: 2.0945, y: 2.6455, z: 0.36946}
+  m_LocalScale: {x: 2.0945, y: 2.6455, z: 1.0759453}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1121801097}
@@ -1392,7 +1392,7 @@ Rigidbody:
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 0
-  m_IsKinematic: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
@@ -1408,13 +1408,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24f4588e3ddad8442b17936494af3838, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 100
+  maxHealth: 999
   currentHealth: 0
-  damagePerHit: 10
+  damagePerHit: 3
   damageCooldown: 1
   damageTags:
   - EnemyAttack
   - Bullet
+  damageDelay: 0.1
   playerCollider: {fileID: 911043459}
   playerRenderer: {fileID: 1774214244}
   damageColor: {r: 1, g: 0, b: 0, a: 1}

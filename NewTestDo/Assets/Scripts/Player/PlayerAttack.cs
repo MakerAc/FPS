@@ -1,16 +1,18 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class PlayerAttack : MonoBehaviour
 {
     [Header("血量设置")]
-    [SerializeField] private int maxHealth = 100; // 最大血量
+    [SerializeField] private int maxHealth = 999; // 最大血量
     [SerializeField] private int currentHealth;   // 当前血量
-    [SerializeField] private int damagePerHit = 10; // 每次受到的伤害
+    [SerializeField] private int damagePerHit = 3; // 每次受到的伤害
 
     [Header("受伤设置")]
-    [SerializeField] private float damageCooldown = 1f; // 伤害冷却时间（秒）
+    [SerializeField] private float damageCooldown = 0.2f; // 伤害冷却时间（秒）
     [SerializeField] private string[] damageTags = { "EnemyAttack", "Bullet" }; // 会造成伤害的标签
+    [SerializeField] private float damageDelay = 0.3f; // 碰撞后延迟触发伤害的时间
 
     [Header("组件引用")]
     [SerializeField] public Collider playerCollider; // 玩家碰撞器
@@ -24,6 +26,12 @@ public class PlayerAttack : MonoBehaviour
     private float lastDamageTime = 0f; // 上次受到伤害的时间
     private Color originalColor; // 原始颜色
     private bool isDead = false; // 是否死亡
+
+    // 跟踪已触发延迟伤害的碰撞对象
+    private HashSet<GameObject> delayedDamageSources = new HashSet<GameObject>();
+
+    // 延迟伤害协程列表
+    private List<Coroutine> delayedDamageCoroutines = new List<Coroutine>();
 
     private void Awake()
     {
@@ -54,7 +62,9 @@ public class PlayerAttack : MonoBehaviour
         // 检查是否为伤害标签
         if (CheckDamageTag(other.tag))
         {
-            ProcessDamage(other.gameObject);
+            // 启动延迟伤害协程
+            Coroutine coroutine = StartCoroutine(DelayedDamage(other.gameObject, damageDelay));
+            delayedDamageCoroutines.Add(coroutine);
         }
     }
 
@@ -63,7 +73,9 @@ public class PlayerAttack : MonoBehaviour
         // 检查是否为伤害标签
         if (CheckDamageTag(collision.gameObject.tag))
         {
-            ProcessDamage(collision.gameObject);
+            // 启动延迟伤害协程
+            Coroutine coroutine = StartCoroutine(DelayedDamage(collision.gameObject, damageDelay));
+            delayedDamageCoroutines.Add(coroutine);
         }
     }
 
@@ -72,7 +84,12 @@ public class PlayerAttack : MonoBehaviour
         // 处理持续触发
         if (CheckDamageTag(other.tag))
         {
-            ProcessDamage(other.gameObject);
+            // 如果这个伤害源还没有在延迟处理中，则开始延迟处理
+            if (!delayedDamageSources.Contains(other.gameObject))
+            {
+                Coroutine coroutine = StartCoroutine(DelayedDamage(other.gameObject, damageDelay));
+                delayedDamageCoroutines.Add(coroutine);
+            }
         }
     }
 
@@ -81,8 +98,49 @@ public class PlayerAttack : MonoBehaviour
         // 处理持续碰撞
         if (CheckDamageTag(collision.gameObject.tag))
         {
-            ProcessDamage(collision.gameObject);
+            // 如果这个伤害源还没有在延迟处理中，则开始延迟处理
+            if (!delayedDamageSources.Contains(collision.gameObject))
+            {
+                Coroutine coroutine = StartCoroutine(DelayedDamage(collision.gameObject, damageDelay));
+                delayedDamageCoroutines.Add(coroutine);
+            }
         }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        // 离开时移除追踪
+        delayedDamageSources.Remove(other.gameObject);
+    }
+
+    private void OnCollisionExit(Collision collision)
+    {
+        // 离开时移除追踪
+        delayedDamageSources.Remove(collision.gameObject);
+    }
+
+    /// <summary>
+    /// 延迟触发伤害
+    /// </summary>
+    private IEnumerator DelayedDamage(GameObject damageSource, float delay)
+    {
+        // 添加到已触发列表
+        delayedDamageSources.Add(damageSource);
+
+        // 等待延迟时间
+        yield return new WaitForSeconds(delay);
+
+        // 检查伤害源是否仍然有效
+        if (damageSource == null || !delayedDamageSources.Contains(damageSource))
+        {
+            yield break;
+        }
+
+        // 处理伤害
+        ProcessDamage(damageSource);
+
+        // 从列表中移除
+        delayedDamageSources.Remove(damageSource);
     }
 
     /// <summary>
@@ -121,7 +179,7 @@ public class PlayerAttack : MonoBehaviour
         StartCoroutine(FlashDamageEffect());
 
         // 销毁子弹（如果攻击源是子弹）
-        if (damageSource.CompareTag("Bullet"))
+        if (damageSource != null && damageSource.CompareTag("Bullet"))
         {
             Bullet bullet = damageSource.GetComponent<Bullet>();
             if (bullet != null)
@@ -164,6 +222,12 @@ public class PlayerAttack : MonoBehaviour
         isDead = true;
         Debug.Log("玩家死亡");
 
+        // 停止所有延迟伤害协程
+        StopAllDelayedDamageCoroutines();
+
+        // 清空延迟伤害源列表
+        delayedDamageSources.Clear();
+
         // 播放死亡特效
         if (deathEffect != null)
         {
@@ -172,6 +236,21 @@ public class PlayerAttack : MonoBehaviour
 
         // 销毁物体及其父物体
         DestroyWithParent();
+    }
+
+    /// <summary>
+    /// 停止所有延迟伤害协程
+    /// </summary>
+    private void StopAllDelayedDamageCoroutines()
+    {
+        foreach (Coroutine coroutine in delayedDamageCoroutines)
+        {
+            if (coroutine != null)
+            {
+                StopCoroutine(coroutine);
+            }
+        }
+        delayedDamageCoroutines.Clear();
     }
 
     /// <summary>
@@ -220,8 +299,4 @@ public class PlayerAttack : MonoBehaviour
         // 这里可以添加更多受伤时的逻辑
         // 例如：触发UI更新、播放受伤音效等
     }
-
-   
- 
-    
 }

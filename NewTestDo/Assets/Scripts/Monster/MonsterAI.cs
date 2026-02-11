@@ -389,6 +389,7 @@ public class MonsterAI : MonoBehaviour
         {
             playerTarget = other.transform;
             isChasing = true;
+            isMovementStopped = false;
             Debug.Log("¿ªÊ¼×·»÷Íæ¼Ò: " + other.name);
         }
     }
